@@ -1,20 +1,23 @@
 import axios from "axios";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
 const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: API_URL,
 });
 
-// Автоматически добавляет токен к каждому запросу
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  // Не отправляем токен для эндпоинтов авторизации
-  if (token && !config.url.includes("/login/") && !config.url.includes("/register/")) {
+  if (
+    token &&
+    !config.url.includes("/login/") &&
+    !config.url.includes("/register/")
+  ) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Перехват ответов для обновления токена
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -25,7 +28,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem("refresh_token");
         if (!refreshToken) throw new Error("No refresh token");
 
-        const res = await axios.post("http://localhost:8000/api/token/refresh/", {
+        const res = await axios.post(`${API_URL}/token/refresh/`, {
           refresh: refreshToken,
         });
 
@@ -35,12 +38,11 @@ api.interceptors.response.use(
       } catch (refreshError) {
         localStorage.removeItem("token");
         localStorage.removeItem("refresh_token");
-        // We could redirect to login here, but since it's an API utility, we'll let the component handle the rejection
         return Promise.reject(refreshError);
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export const registerUser = async (name, email, password) => {

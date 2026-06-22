@@ -1,6 +1,6 @@
 # 🔐 Fullstack Authentication System
 
-Веб-приложение с системой аутентификации, разделением ролей и личным кабинетом, развёртываемое с помощью Docker Compose.
+Веб-приложение с системой аутентификации, разделением ролей и личным кабинетом, развёртываемое с помощью Docker Compose в production-ready конфигурации (gunicorn, multistage build, non-root users).
 
 Проект состоит из трёх частей:
 
@@ -12,7 +12,7 @@
 
 ## 🌟 Функционал
 
-- **Регистрация и Авторизация** — Безопасная аутентификация через JWT-токены с автоматическим входом после регистрации.
+- **Регистрация и Авторизация** — Безопасная аутентификация через JWT-токены с автоматическим входом после регистрации. По умолчанию пользователи получают роль `user`.
 - **Ролевая модель** — Разделение прав доступа на обычных пользователей (`user`) и администраторов (`admin`).
 - **Личный кабинет (Dashboard)**:
   - Просмотр и управление личным профилем.
@@ -20,7 +20,7 @@
 - **Панель администратора**:
   - Список всех зарегистрированных пользователей.
   - Сортировка таблицы по ID, имени, email и роли.
-  - Удаление пользователей (администратор не может удалить другого администратора).
+  - Удаление пользователей (администратор не может удалить другого администратора, но может удалить себя).
 
 ---
 
@@ -30,10 +30,11 @@
 
 | Технология           | Описание                 |
 | -------------------- | ------------------------ |
-| **Python 3.x**       | Основной язык            |
+| **Python 3.12**      | Основной язык            |
 | **Django** + **DRF** | Веб-фреймворк и REST API |
 | **Simple JWT**       | JWT-аутентификация       |
 | **PostgreSQL**       | Реляционная база данных  |
+| **Gunicorn**         | WSGI HTTP Server         |
 
 ### Frontend
 
@@ -53,9 +54,11 @@
 
 ## 🚀 Запуск проекта (Docker Compose)
 
-> **Рекомендуемый способ запуска.** Docker автоматически поднимет PostgreSQL, Backend и Frontend.
+> **Рекомендуемый способ запуска.** Docker автоматически поднимет PostgreSQL, Backend и Frontend, используя безопасные production-настройки.
 
 Убедитесь, что у вас установлен [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+### 1. Подготовка конфигурации (Environment Variables)
 
 Клонируйте репозиторий и перейдите в папку проекта:
 
@@ -63,6 +66,20 @@
 git clone <url-репозитория>
 cd Project_1
 ```
+
+Скопируйте шаблоны переменных окружения:
+
+```bash
+# Для бэкенда и БД
+cp backend/.env.example backend/.env
+
+# Для фронтенда
+cp frontend/.env.example frontend/.env
+```
+
+Отредактируйте созданные `.env` файлы при необходимости (например, измените пароли или SECRET_KEY).
+
+### 2. Сборка и запуск
 
 Запустите все сервисы одной командой:
 
@@ -80,7 +97,7 @@ docker compose up --build
 
 ## 👤 Создание администратора
 
-После первого запуска проекта необходимо создать суперпользователя (администратора).
+После первого запуска проекта необходимо создать суперпользователя (администратора). При создании через эту команду пользователю автоматически присваивается роль `admin`.
 
 Выполните команду в новом терминале:
 
@@ -93,12 +110,12 @@ docker compose exec backend python manage.py createsuperuser
 - **Email** — адрес электронной почты
 - **Username** — имя пользователя
 - **Name** — отображаемое имя
-- **Password** — пароль (минимум 8 символов)
+- **Password** — пароль (минимум 6 символов)
 
 После создания администратора:
 
 - **Django Admin Panel** будет доступна по адресу: http://localhost:8000/admin
-- **Dashboard** с правами администратора откроет доступ к управлению пользователями
+- **Dashboard** на сайте (по адресу http://localhost:3000) откроет доступ к вкладке "Пользователи системы"
 
 ---
 
@@ -117,14 +134,16 @@ docker compose exec backend python manage.py createsuperuser
 | `POST`   | `/api/register/`   | Регистрация пользователя     | Публичный      |
 | `POST`   | `/api/login/`      | Получение JWT токенов        | Публичный      |
 | `GET`    | `/api/me/`         | Данные текущего пользователя | Авторизованный |
+| `DELETE` | `/api/me/`         | Удаление себя                | Авторизованный |
 | `GET`    | `/api/users/`      | Список всех пользователей    | Только `admin` |
+| `GET`    | `/api/users/<id>/` | Получить юзера по ID         | Только `admin` |
 | `DELETE` | `/api/users/<id>/` | Удаление пользователя        | Только `admin` |
 
 ---
 
 ## 📦 Docker Services
 
-Проект состоит из трёх контейнеров:
+Проект состоит из трёх контейнеров. Контейнеры backend и frontend запускаются от имени **непривилегированных пользователей (non-root)**.
 
 | Контейнер  | Описание               | Порт            |
 | ---------- | ---------------------- | --------------- |
@@ -137,7 +156,7 @@ docker compose exec backend python manage.py createsuperuser
 Запустить проект:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 Остановить проект:
@@ -146,23 +165,10 @@ docker compose up --build
 docker compose down
 ```
 
-Пересобрать и перезапустить проект:
-
-```bash
-docker compose up --build
-```
-
 Посмотреть логи:
 
 ```bash
 docker compose logs -f
-```
-
-Зайти в оболочку контейнера:
-
-```bash
-docker compose exec backend bash
-docker compose exec frontend sh
 ```
 
 ---
@@ -179,6 +185,8 @@ docker compose exec frontend sh
 cd backend
 ```
 
+Убедитесь, что у вас есть локальный сервер PostgreSQL или измените настройки в `.env` на SQLite3 (в `settings.py`).
+
 Создайте и активируйте виртуальное окружение:
 
 ```bash
@@ -193,7 +201,7 @@ source venv/bin/activate  # Mac/Linux
 pip install -r requirements.txt
 ```
 
-Примените миграции и запустите сервер:
+Создайте `.env` файл на основе `.env.example`, примените миграции и запустите сервер:
 
 ```bash
 python manage.py migrate
@@ -206,6 +214,7 @@ python manage.py runserver
 
 ```bash
 cd frontend
+cp .env.example .env.local
 npm install
 npm run dev
 ```
@@ -214,12 +223,12 @@ npm run dev
 
 ## 🧪 Тестирование
 
-Тесты покрывают ключевые сценарии: регистрацию, авторизацию, защищённые маршруты и права доступа.
+Тесты покрывают ключевые сценарии: регистрацию, авторизацию, защищённые маршруты, права доступа и бизнес-логику удаления (админы vs юзеры).
 
 Запуск тестов (через Docker):
 
 ```bash
-docker compose exec backend python manage.py test users.tests.UserFlowTests
+docker compose exec backend python manage.py test users.tests
 ```
 
 Запуск тестов (локально):
@@ -227,17 +236,18 @@ docker compose exec backend python manage.py test users.tests.UserFlowTests
 ```bash
 cd backend
 source venv/bin/activate
-python manage.py test users.tests.UserFlowTests
+python manage.py test users.tests
 ```
 
 ### Покрытие тестов
 
-| Тест                        | Описание                            |
-| --------------------------- | ----------------------------------- |
-| `test_user_registration`    | Регистрация нового пользователя     |
-| `test_user_login`           | Авторизация и получение JWT         |
-| `test_protected_access`     | Доступ к защищённым данным          |
-| `test_user_list_admin_only` | Список пользователей (только admin) |
+| Тест                          | Описание                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `test_user_registration`      | Регистрация нового пользователя                                          |
+| `test_user_login`             | Авторизация и получение JWT                                              |
+| `test_protected_access`       | Доступ к защищённым данным                                               |
+| `test_user_list_admin_only`   | Список пользователей (только admin)                                      |
+| `test_user_detail_and_delete` | Проверка GET/DELETE в UserDetailView (защита от удаления других админов) |
 
 ---
 
@@ -246,19 +256,27 @@ python manage.py test users.tests.UserFlowTests
 ```
 Project_1/
 ├── backend/                # Django REST API
+│   ├── .env.example        # Шаблон переменных окружения бэкенда и БД
 │   ├── users/              # Приложение аутентификации
 │   │   ├── models.py       # Модель пользователя
 │   │   ├── views.py        # API-вьюхи
 │   │   ├── serializers.py  # Сериализаторы
-│   │   └── tests.py        # Тесты (UserFlowTests)
+│   │   └── tests.py        # Unit-тесты
 │   ├── manage.py
+│   ├── Dockerfile          # Сборка с Gunicorn и non-root юзером
 │   └── requirements.txt
 ├── frontend/               # Next.js приложение
+│   ├── .env.example        # Шаблон переменных окружения фронтенда (NEXT_PUBLIC_API_URL)
 │   ├── app/                # App Router страницы
-│   │   ├── page.tsx        # Главная страница
+│   │   ├── page.js         # Главная страница
 │   │   ├── login/          # Страница входа
 │   │   ├── register/       # Страница регистрации
 │   │   └── dashboard/      # Личный кабинет
+│   ├── components/         # React-компоненты
+│   │   ├── dashboard/      # Таблицы, табы профиля
+│   │   └── modals/         # Модальные окна (удаление аккаунта)
+│   ├── lib/                # API клиент с Axios
+│   ├── Dockerfile          # Multistage сборка Next.js
 │   └── package.json
 ├── docker-compose.yml      # Конфигурация Docker
 └── README.md

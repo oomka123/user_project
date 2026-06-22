@@ -83,3 +83,32 @@ class UserFlowTests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {admin_token}')
         response = self.client.get('/api/users/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_detail_and_delete(self):
+        admin_login = self.client.post('/api/login/', {
+            'email': 'admin@test.com',
+            'password': 'adminpass123',
+        })
+        admin_token = admin_login.data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {admin_token}')
+        
+        response = self.client.get(f'/api/users/{self.user.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['email'], 'user@test.com')
+        
+        # Попытка удалить другого админа должна быть запрещена
+        another_admin = User.objects.create_user(
+            username='admin2@test.com',
+            email='admin2@test.com',
+            name='Admin 2',
+            password='adminpass123',
+            role='admin',
+            is_staff=True,
+        )
+        response = self.client.delete(f'/api/users/{another_admin.id}/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        
+        # Попытка удалить самого себя (админа) должна быть успешной
+        response = self.client.delete(f'/api/users/{self.admin.id}/')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(User.objects.filter(id=self.admin.id).exists())

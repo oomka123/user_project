@@ -1,8 +1,3 @@
-# from django.shortcuts import render
-# from django.http import JsonResponse
-# from django.http import HttpResponse
-
-# Create your views here.
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -47,14 +42,22 @@ class UserListView(APIView):
 class UserDetailView(APIView):
     permission_classes = [IsAdminRole]
 
+    def get(self, request, pk):
+        try:
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+
     def delete(self, request, pk):
         try:
             user_to_delete = User.objects.get(pk=pk)
         except User.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if user_to_delete.role == 'admin':
-            return Response({"detail": "Cannot delete an admin user."}, status=status.HTTP_403_FORBIDDEN)
+        if user_to_delete.role == 'admin' and user_to_delete != request.user:
+            return Response({"detail": "Cannot delete another admin user."}, status=status.HTTP_403_FORBIDDEN)
 
         user_to_delete.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
